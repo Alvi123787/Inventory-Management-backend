@@ -33,7 +33,6 @@ const channelRoutes = require("./routes/channelRoutes");
 
 // ====== Express App Setup ======
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // ====== CORS ======
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }));
@@ -115,7 +114,7 @@ app.use("*", (req, res) => {
   });
 });
 
-// ====== Initialize & Start Server ======
+// ====== Initialize (no listening for serverless)
 const initializeApp = async () => {
   try {
     await testConnection();
@@ -140,22 +139,13 @@ const initializeApp = async () => {
       }
     } catch (e) {}
 
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT}`);
-      console.log(`➡️  http://localhost:${PORT}`);
-      console.log(`🛒 Products:     http://localhost:${PORT}/api/products`);
-      console.log(`📦 Orders:       http://localhost:${PORT}/api/orders`);
-      console.log(`🔑 Auth:         http://localhost:${PORT}/api/auth`);
-      console.log(`⚙️  Settings:     http://localhost:${PORT}/api/settings`);
-      console.log(`🏷️ Statuses:     http://localhost:${PORT}/api/statuses`);
-      console.log(`💳 PaymentStat:  http://localhost:${PORT}/api/payment-statuses`);
-      console.log(`🚚 Couriers:     http://localhost:${PORT}/api/couriers`);
-      console.log(`📣 Channels:     http://localhost:${PORT}/api/channels`);
-    });
+    // No app.listen here for Vercel/serverless
   } catch (error) {
     console.error("❌ Failed to initialize application:", error.message);
-    process.exit(1);
+    // Do not exit in serverless
   }
 };
 
 initializeApp();
+
+module.exports = app;
