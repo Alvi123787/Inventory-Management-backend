@@ -43,11 +43,15 @@ const User = {
       CREATE TABLE IF NOT EXISTS user_roles (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
-        feature ENUM('products','orders','reports','dashboard') NOT NULL,
+        feature ENUM('products','orders','reports','dashboard','expenses','settings') NOT NULL,
         UNIQUE KEY uniq_user_feature (user_id, feature),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+    // Ensure ENUM includes new features
+    await promisePool.query(
+      "ALTER TABLE user_roles MODIFY COLUMN feature ENUM('products','orders','reports','dashboard','expenses','settings') NOT NULL"
+    );
   },
 
   // Ensure reset token columns exist

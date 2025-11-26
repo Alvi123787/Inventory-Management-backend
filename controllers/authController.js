@@ -316,7 +316,7 @@ exports.listUsersForSubAdmin = async (req, res) => {
   try {
     const accountId = req.user.account_id;
     const [rows] = await require("../config/db").promisePool.query(
-      "SELECT u.id, u.name, u.email, u.created_by, c.name AS created_by_name, GROUP_CONCAT(ur.feature) AS feature_roles FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id LEFT JOIN users c ON c.id = u.created_by WHERE u.account_id = ? AND u.role='user' GROUP BY u.id ORDER BY u.id DESC",
+      "SELECT u.id, u.name, u.email, u.role, u.created_by, c.name AS created_by_name, GROUP_CONCAT(ur.feature) AS feature_roles FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id LEFT JOIN users c ON c.id = u.created_by WHERE u.account_id = ? AND u.role='user' GROUP BY u.id ORDER BY u.id DESC",
       [accountId]
     );
     const users = rows.map(r => ({
@@ -326,5 +326,35 @@ exports.listUsersForSubAdmin = async (req, res) => {
     res.json({ success: true, data: users, count: users.length });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// NEW: Sub-Admin deletes a user in their account
+exports.deleteUserBySubAdmin = async (req, res) => {
+  try {
+    const accountId = req.user.account_id;
+    const userId = parseInt(req.params.id, 10);
+    if (!accountId || !userId) {
+      return res.status(400).json({ success: false, message: "Invalid request" });
+    }
+    const { promisePool } = require("../config/db");
+    const [rows] = await promisePool.query(
+      "SELECT id FROM users WHERE id = ? AND account_id = ? AND role = 'user'",
+      [userId, accountId]
+    );
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found or access denied" });
+    }
+    await promisePool.query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
+    const [result] = await promisePool.query(
+      "DELETE FROM users WHERE id = ? AND account_id = ? AND role = 'user'",
+      [userId, accountId]
+    );
+    if (result.affectedRows > 0) {
+      return res.json({ success: true, message: "User deleted successfully" });
+    }
+    return res.status(500).json({ success: false, message: "Failed to delete user" });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

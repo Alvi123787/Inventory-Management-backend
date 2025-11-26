@@ -1,5 +1,5 @@
 const express = require("express");
-const { registerUser, loginUser, getAllUsers, deleteUser, forgotPassword, resetPassword, devSeedUser, createSubAdmin, listSubAdmins, createUserBySubAdmin, listUsersForSubAdmin } = require("../controllers/authController");
+const { registerUser, loginUser, getAllUsers, deleteUser, forgotPassword, resetPassword, devSeedUser, createSubAdmin, listSubAdmins, createUserBySubAdmin, listUsersForSubAdmin, deleteUserBySubAdmin } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 const { adminOnly, requireSystemRole } = require("../middleware/roleMiddleware");
 
@@ -33,5 +33,6 @@ router.get("/subadmins", protect, adminOnly, listSubAdmins);
 // RBAC: Sub-Admin manages Users in account (max 4)
 router.post("/account/users", protect, requireSystemRole('sub_admin'), createUserBySubAdmin);
 router.get("/account/users", protect, requireSystemRole('sub_admin'), listUsersForSubAdmin);
+router.delete("/account/users/:id", protect, requireSystemRole('sub_admin'), deleteUserBySubAdmin);
 
 module.exports = router;
