@@ -65,7 +65,7 @@ const corsOptions = {
   },
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
-  credentials: true,
+  credentials: false,
   optionsSuccessStatus: 204,
   preflightContinue: false,
 };
@@ -81,7 +81,7 @@ app.use((req, res, next) => {
     const isAllowed = allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
     if (isAllowed) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      // No credentials needed (token-based auth)
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     }
