@@ -37,14 +37,9 @@ const app = express();
 // ====== CORS (robust, flexible origins + preflight handling) ======
 // Allowed origins are taken from `ALLOWED_ORIGINS` env (comma-separated)
 // We also include `FRONTEND_URL`/`CLIENT_URL` and default to localhost for dev.
-const envAllow = (process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
-const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || "";
-const defaultLocal = ["http://localhost:5173", "http://127.0.0.1:5173"];
-const allowedOrigins = Array.from(new Set([
-  ...envAllow,
-  ...(frontendUrl ? [frontendUrl] : []),
-  ...defaultLocal,
-])).filter(Boolean);
+const allowedOrigins = [
+  'https://inventorymanagement07.netlify.app'
+];
 
 const corsOptions = {
   origin: function(origin, callback) {
@@ -68,8 +63,8 @@ const corsOptions = {
     console.warn(`CORS: blocked origin ${origin}. Allowed: ${allowedOrigins.join(',')}`);
     return callback(null, false);
   },
-  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','X-Requested-With','Accept','Origin','Referer','User-Agent'],
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
   credentials: true,
   optionsSuccessStatus: 204,
   preflightContinue: false,
@@ -87,8 +82,8 @@ app.use((req, res, next) => {
     if (isAllowed) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     }
   }
   if (req.method === 'OPTIONS') {
@@ -99,6 +94,7 @@ app.use((req, res, next) => {
 
 // Ensure explicit OPTIONS handling for all routes (serverless safety)
 app.options('*', cors(corsOptions));
+app.options('/events', cors(corsOptions));
 
 // ====== Body Parsers ======
 app.use(bodyParser.json({ limit: '10mb' }));
