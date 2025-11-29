@@ -182,6 +182,12 @@ const createOrder = async (req, res) => {
                 product_id: it.product_id ?? it.productId ?? null
               }))
             : null;
+        const hasItems = Array.isArray(incomingItems) && incomingItems.length > 0;
+        const fallbackPrice = req.body.price;
+        const fallbackTitle = req.body.productTitle;
+        if (!hasItems && (fallbackPrice == null || fallbackPrice === '')) {
+          return res.status(400).json({ success: false, message: 'orderItems or price is required' });
+        }
         const refreshed = await refreshItemPrices(incomingItems, req.user.id);
         const pricing = await computePricing(refreshed, req.user.id, {
             tax_included: req.body.tax_included,
@@ -269,11 +275,11 @@ const createOrder = async (req, res) => {
         broadcast('orders.changed', { id: newOrder.id });
         broadcast('products.changed', {});
     } catch (error) {
-        console.error('Error in createOrder:', error.message);
+        console.error('Error in createOrder:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to create order',
-            error: error.message
+            error: error?.message || 'Unknown error'
         });
     }
 };
@@ -460,11 +466,11 @@ const updateOrder = async (req, res) => {
         broadcast('orders.changed', { id: updatedOrder.id });
         broadcast('products.changed', {});
     } catch (error) {
-        console.error('Error in updateOrder:', error.message);
+        console.error('Error in updateOrder:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to update order',
-            error: error.message
+            error: error?.message || 'Unknown error'
         });
     }
 };
