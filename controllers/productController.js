@@ -51,7 +51,7 @@ const productController = {
   // Create new product for the authenticated user
   createProduct: async (req, res) => {
     try {
-      const { name, price, discount_rate, cost, stock, image_url } = req.body;
+      const { name, price, discount_rate, cost, stock, image_url, product_date } = req.body;
 
       // Validate image size to avoid payload/DB errors
       const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -94,7 +94,15 @@ const productController = {
         });
       }
 
-      const createdProduct = await Product.create({ name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl }, req.user.id, req.user.account_id || null);
+      // Validate product_date if provided (should be valid date format YYYY-MM-DD)
+      if (product_date && !/^\d{4}-\d{2}-\d{2}$/.test(product_date)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product date must be in YYYY-MM-DD format'
+        });
+      }
+
+      const createdProduct = await Product.create({ name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, req.user.id, req.user.account_id || null);
       
       res.status(201).json({
         success: true,
@@ -115,7 +123,7 @@ const productController = {
   updateProduct: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, price, discount_rate, cost, stock, image_url } = req.body;
+      const { name, price, discount_rate, cost, stock, image_url, product_date } = req.body;
 
       // Validate image size to avoid payload/DB errors
       const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -158,8 +166,16 @@ const productController = {
         });
       }
 
+      // Validate product_date if provided (should be valid date format YYYY-MM-DD)
+      if (product_date && !/^\d{4}-\d{2}-\d{2}$/.test(product_date)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product date must be in YYYY-MM-DD format'
+        });
+      }
+
       const accountId = req.user.role === 'admin' ? null : req.user.account_id;
-      const updatedProduct = await Product.update(id, { name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl }, accountId);
+      const updatedProduct = await Product.update(id, { name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, accountId);
       
       if (!updatedProduct) {
         return res.status(404).json({

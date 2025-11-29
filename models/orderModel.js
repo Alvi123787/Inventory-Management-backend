@@ -157,11 +157,12 @@ class Order {
 
   static async create(orderData, userId, accountId) {
     const [result] = await promisePool.execute(
-      `INSERT INTO orders (order_id, user_id, customer_name, phone, address, products, subtotal, discount_amount, total_price, tax_amount, tax_included, status, payment_status, payment_method, courier, tracking_id, channel, partial_paid_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO orders (order_id, user_id, account_id, customer_name, phone, address, products, subtotal, discount_amount, total_price, tax_amount, tax_included, status, payment_status, payment_method, courier, tracking_id, channel, partial_paid_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderData.order_id,
         userId,
+        accountId,
         orderData.customer_name,
         orderData.phone,
         orderData.address,
@@ -180,8 +181,6 @@ class Order {
         orderData.partial_paid_amount ?? null
       ]
     );
-    // Attach account_id via separate update to avoid changing INSERT column order
-    await promisePool.execute('UPDATE orders SET account_id=? WHERE id=?', [accountId, result.insertId]);
     return { id: result.insertId, ...orderData, user_id: userId, account_id: accountId };
   }
 

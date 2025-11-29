@@ -34,7 +34,7 @@ const Settings = {
 
   getByUser: async (userId) => {
     const [rows] = await promisePool.execute(
-      'SELECT s.* FROM user_settings s JOIN users u ON (s.account_id = u.account_id) WHERE u.id = ? LIMIT 1',
+      'SELECT * FROM user_settings WHERE user_id = ? LIMIT 1',
       [userId]
     );
     return rows[0] || null;

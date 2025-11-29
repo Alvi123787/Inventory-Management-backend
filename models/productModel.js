@@ -13,6 +13,7 @@ const Product = {
           cost DECIMAL(10,2) NOT NULL,
           stock INT NOT NULL,
           image_url MEDIUMTEXT DEFAULT NULL,
+          product_date DATE DEFAULT NULL,
           user_id INT NOT NULL,
           account_id VARCHAR(36) NULL,
           platform ENUM('manual','shopify','woocommerce') DEFAULT 'manual',
@@ -40,6 +41,13 @@ const Product = {
           await promisePool.execute("ALTER TABLE products MODIFY COLUMN image_url MEDIUMTEXT DEFAULT NULL");
           console.log('Migrated products.image_url to MEDIUMTEXT to support larger images');
         }
+      }
+      // Ensure product_date column exists
+      const [dateCol] = await promisePool.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'product_date'`
+      );
+      if ((dateCol[0]?.cnt || 0) === 0) {
+        await promisePool.execute("ALTER TABLE products ADD COLUMN product_date DATE DEFAULT NULL AFTER image_url");
       }
       // Ensure account_id exists
       const [acctCol] = await promisePool.execute(
@@ -85,26 +93,26 @@ const Product = {
   },
 
   create: async (productData, userId, accountId) => {
-    const { name, price, discount_rate, cost, stock, image_url } = productData;
+    const { name, price, discount_rate, cost, stock, image_url, product_date } = productData;
     const [result] = await promisePool.execute(
-      'INSERT INTO products (name, price, discount_rate, cost, stock, image_url, user_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, userId, accountId]
+      'INSERT INTO products (name, price, discount_rate, cost, stock, image_url, product_date, user_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, product_date || null, userId, accountId]
     );
     return { id: result.insertId, ...productData, user_id: userId, account_id: accountId };
   },
 
   update: async (id, productData, accountId) => {
-    const { name, price, discount_rate, cost, stock, image_url } = productData;
+    const { name, price, discount_rate, cost, stock, image_url, product_date } = productData;
     if (accountId == null) {
       const [result] = await promisePool.execute(
-        'UPDATE products SET name=?, price=?, discount_rate=?, cost=?, stock=?, image_url=? WHERE id=?',
-        [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, id]
+        'UPDATE products SET name=?, price=?, discount_rate=?, cost=?, stock=?, image_url=?, product_date=? WHERE id=?',
+        [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, product_date || null, id]
       );
       return result.affectedRows > 0 ? { id, ...productData } : null;
     }
     const [result] = await promisePool.execute(
-      'UPDATE products SET name=?, price=?, discount_rate=?, cost=?, stock=?, image_url=? WHERE id=? AND account_id=?',
-      [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, id, accountId]
+      'UPDATE products SET name=?, price=?, discount_rate=?, cost=?, stock=?, image_url=?, product_date=? WHERE id=? AND account_id=?',
+      [name, parseFloat(price), parseFloat(discount_rate || 0), parseFloat(cost), parseInt(stock), image_url || null, product_date || null, id, accountId]
     );
     return result.affectedRows > 0 ? { id, ...productData, account_id: accountId } : null;
   },

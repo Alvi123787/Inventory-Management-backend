@@ -34,8 +34,71 @@ const channelRoutes = require("./routes/channelRoutes");
 // ====== Express App Setup ======
 const app = express();
 
-// ====== CORS ======
-app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }));
+// ====== CORS (robust, flexible origins + preflight handling) ======
+// Allowed origins are taken from `ALLOWED_ORIGINS` env (comma-separated)
+// We also include `FRONTEND_URL`/`CLIENT_URL` and default to localhost for dev.
+const envAllow = (process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.NEXT_PUBLIC_FRONTEND_URL || "";
+const defaultLocal = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const allowedOrigins = Array.from(new Set([
+  ...envAllow,
+  ...(frontendUrl ? [frontendUrl] : []),
+  ...defaultLocal,
+])).filter(Boolean);
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    // Allow requests with no origin (server-to-server, curl, native apps)
+    if (!origin) return callback(null, true);
+
+    // Exact allowlist match
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Allow localhost variants on any port during development
+    try {
+      const parsed = new URL(origin);
+      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+        return callback(null, true);
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+
+    // Not allowed
+    console.warn(`CORS: blocked origin ${origin}. Allowed: ${allowedOrigins.join(',')}`);
+    return callback(null, false);
+  },
+  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','X-Requested-With','Accept','Origin','Referer','User-Agent'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+  preflightContinue: false,
+};
+
+// Use the cors middleware with our options
+app.use(cors(corsOptions));
+
+// Explicit header fallback & fast OPTIONS response (helps with some proxies)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    // If origin is allowed by our logic, echo it; otherwise skip CORS headers
+    const isAllowed = allowedOrigins.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    }
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+// Ensure explicit OPTIONS handling for all routes (serverless safety)
+app.options('*', cors(corsOptions));
 
 // ====== Body Parsers ======
 app.use(bodyParser.json({ limit: '10mb' }));
