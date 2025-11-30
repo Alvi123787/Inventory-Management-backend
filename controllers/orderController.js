@@ -221,49 +221,39 @@ const createOrder = async (req, res) => {
             })(req.body.paymentStatus || req.body.payment_status)
         };
 
-        // If the order is being created as confirmed-like, ensure stock is available first
-        const confirmingOnCreate = isConfirmedStatus(mapped.status || '');
-        if (confirmingOnCreate) {
-          try {
-            const items = Array.isArray(incomingItems) ? incomingItems : [];
-            const needMap = new Map();
-            for (const it of items) {
-              const pid = Number(it.product_id);
-              const qty = Number(it.quantity || 0);
-              if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
-                needMap.set(pid, (needMap.get(pid) || 0) + qty);
-              }
+        // Validate availability for all items on create
+        try {
+          const items = Array.isArray(incomingItems) ? incomingItems : [];
+          const needMap = new Map();
+          for (const it of items) {
+            const pid = Number(it.product_id);
+            const qty = Number(it.quantity || 0);
+            if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
+              needMap.set(pid, (needMap.get(pid) || 0) + qty);
             }
-
-            // Validate availability before creating order
-            for (const [pid, needQty] of needMap.entries()) {
-              const prod = await Product.getById(pid, accountId);
-              const available = Number(prod?.stock || 0);
-              if (!prod || available < needQty) {
-                const name = prod?.name || `ID ${pid}`;
-                return res.status(400).json({
-                  success: false,
-                  message: `Insufficient stock for product ${name}`
-                });
-              }
-            }
-          } catch (chkErr) {
-            return res.status(500).json({ success: false, message: 'Stock validation failed', error: chkErr.message });
           }
+          for (const [pid, needQty] of needMap.entries()) {
+            const prod = await Product.getById(pid, accountId);
+            const available = Number(prod?.stock || 0);
+            if (!prod || available < needQty) {
+              const name = prod?.name || `ID ${pid}`;
+              return res.status(400).json({ success: false, message: `Insufficient stock for product ${name}` });
+            }
+          }
+        } catch (chkErr) {
+          return res.status(500).json({ success: false, message: 'Stock validation failed', error: chkErr.message });
         }
 
         const newOrder = await Order.create(mapped, req.user.id, accountId);
 
         // On creation, if confirmed, decrease stock for each product
         try {
-          if (confirmingOnCreate) {
-            const items = Array.isArray(incomingItems) ? incomingItems : [];
-            for (const it of items) {
-              const pid = Number(it.product_id);
-              const qty = Number(it.quantity || 1);
-              if (!Number.isNaN(pid) && pid > 0 && !Number.isNaN(qty) && qty > 0) {
-                await Product.adjustStock(pid, -qty, accountId);
-              }
+          const items = Array.isArray(incomingItems) ? incomingItems : [];
+          for (const it of items) {
+            const pid = Number(it.product_id);
+            const qty = Number(it.quantity || 1);
+            if (!Number.isNaN(pid) && pid > 0 && !Number.isNaN(qty) && qty > 0) {
+              await Product.adjustStock(pid, -qty, accountId);
             }
           }
         } catch (invErr) {
@@ -345,19 +335,14 @@ const updateOrder = async (req, res) => {
             })(req.body.paymentStatus || req.body.payment_status || existingOrder.payment_status)
         };
 
-        // Compute inventory adjustments based on status transitions
+        // Inventory adjustments independent of status, with special handling for cancel/return
         try {
           const prevItems = Array.isArray(prevItemsRaw) ? prevItemsRaw : [];
           const newItems = Array.isArray(incomingItems) ? incomingItems : prevItems;
-
-          const prevStatus = (existingOrder.status || '').toLowerCase();
           const newStatus = (mapped.status || '').toLowerCase();
-          const prevConfirmed = isConfirmedStatus(prevStatus);
-          const newConfirmed = isConfirmedStatus(newStatus);
           const newIsCancelled = isCancelledStatus(newStatus);
           const newIsReturned = isReturnedStatus(newStatus);
 
-          // Build quantity maps per product
           const toMap = (items) => {
             const m = new Map();
             for (const it of Array.isArray(items) ? items : []) {
@@ -373,88 +358,38 @@ const updateOrder = async (req, res) => {
           const prevMap = toMap(prevItems);
           const newMap = toMap(newItems);
 
-          if (!prevConfirmed && newConfirmed) {
-            // Validate availability before confirming
-            for (const [pid, needQty] of newMap.entries()) {
-              const prod = await Product.getById(pid, accountId);
-              const available = Number(prod?.stock || 0);
-              if (!prod || available < needQty) {
-                const name = prod?.name || `ID ${pid}`;
-                return res.status(400).json({
-                  success: false,
-                  message: `Insufficient stock for product ${name}`
-                });
-              }
-            }
-            // Transition to confirmed: allocate stock for all new items
-            for (const [pid, qty] of newMap.entries()) {
-              await Product.adjustStock(pid, -qty, accountId);
-            }
-          } else if (prevConfirmed && newConfirmed) {
-            const restoredOnEdit = !!req.body.restoredOnEdit;
-            if (restoredOnEdit) {
-              // Edit started with stock restored; allocate absolute new quantities
-              const allPids = new Set([...prevMap.keys(), ...newMap.keys()]);
-              for (const pid of allPids) {
-                const newQty = newMap.get(pid) || 0;
-                if (newQty > 0) {
-                  const prod = await Product.getById(pid, accountId);
-                  const available = Number(prod?.stock || 0);
-                  if (!prod || available < newQty) {
-                    const name = prod?.name || `ID ${pid}`;
-                    return res.status(400).json({
-                      success: false,
-                      message: `Insufficient stock for product ${name}`
-                    });
-                  }
-                }
-              }
-              for (const pid of allPids) {
-                const newQty = newMap.get(pid) || 0;
-                if (newQty > 0) {
-                  await Product.adjustStock(pid, -newQty, accountId);
-                }
-              }
-            } else {
-              // Still confirmed: adjust for item quantity changes (delta)
-              const allPids = new Set([...prevMap.keys(), ...newMap.keys()]);
-              for (const pid of allPids) {
-                const oldQty = prevMap.get(pid) || 0;
-                const newQty = newMap.get(pid) || 0;
-                const delta = newQty - oldQty; // positive means allocate more
-                if (delta > 0) {
-                  const prod = await Product.getById(pid, accountId);
-                  const available = Number(prod?.stock || 0);
-                  if (!prod || available < delta) {
-                    const name = prod?.name || `ID ${pid}`;
-                    return res.status(400).json({
-                      success: false,
-                      message: `Insufficient stock for product ${name}`
-                    });
-                  }
-                }
-              }
-              for (const pid of allPids) {
-                const oldQty = prevMap.get(pid) || 0;
-                const newQty = newMap.get(pid) || 0;
-                const delta = newQty - oldQty;
-                if (delta !== 0) {
-                  await Product.adjustStock(pid, -delta, accountId);
-                }
-              }
-            }
-          } else if (prevConfirmed && (newIsCancelled || newIsReturned)) {
-            // Confirmed -> Cancelled or Returned: restore stock only if not already restored at edit-start
+          if (newIsCancelled || newIsReturned) {
             if (!req.body.restoredOnEdit) {
               for (const [pid, qty] of prevMap.entries()) {
                 await Product.adjustStock(pid, qty, accountId);
               }
             }
           } else {
-            // Other transitions: no stock change
+            const allPids = new Set([...prevMap.keys(), ...newMap.keys()]);
+            for (const pid of allPids) {
+              const oldQty = prevMap.get(pid) || 0;
+              const newQty = newMap.get(pid) || 0;
+              const delta = newQty - oldQty;
+              if (delta > 0) {
+                const prod = await Product.getById(pid, accountId);
+                const available = Number(prod?.stock || 0);
+                if (!prod || available < delta) {
+                  const name = prod?.name || `ID ${pid}`;
+                  return res.status(400).json({ success: false, message: `Insufficient stock for product ${name}` });
+                }
+              }
+            }
+            for (const pid of allPids) {
+              const oldQty = prevMap.get(pid) || 0;
+              const newQty = newMap.get(pid) || 0;
+              const delta = newQty - oldQty;
+              if (delta !== 0) {
+                await Product.adjustStock(pid, -delta, accountId);
+              }
+            }
           }
         } catch (invErr) {
-          console.error('Inventory adjust error (update with status):', invErr.message);
+          console.error('Inventory adjust error (update):', invErr.message);
         }
 
         const updatedOrder = await Order.update(req.params.id, mapped, accountId);
@@ -537,18 +472,13 @@ const startEditOrder = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found or access denied' });
         }
 
-        const prevStatus = (order.status || '').toLowerCase();
-        const prevConfirmed = isConfirmedStatus(prevStatus);
-
         try {
-            if (prevConfirmed) {
-                const items = typeof order.products === 'string' ? JSON.parse(order.products || '[]') : (order.products || []);
-                for (const it of Array.isArray(items) ? items : []) {
-                    const pid = Number(it.product_id);
-                    const qty = Number(it.quantity || 0);
-                    if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
-                        await Product.adjustStock(pid, qty, accountId);
-                    }
+            const items = typeof order.products === 'string' ? JSON.parse(order.products || '[]') : (order.products || []);
+            for (const it of Array.isArray(items) ? items : []) {
+                const pid = Number(it.product_id);
+                const qty = Number(it.quantity || 0);
+                if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
+                    await Product.adjustStock(pid, qty, accountId);
                 }
             }
         } catch (invErr) {
