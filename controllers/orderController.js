@@ -493,62 +493,11 @@ const startEditOrder = async (req, res) => {
     }
 };
 
-// Reconcile product stock by scanning delivered+paid orders and deducting quantities once
-const reconcileStockFromOrders = async (req, res) => {
-    try {
-        const accountId = req.user.role === 'admin' ? null : req.user.account_id;
-        const orders = await Order.getDeliveredPaidUnreconciled(accountId);
-        const productsList = await Product.getAll(accountId);
-        const nameToId = new Map();
-        for (const p of Array.isArray(productsList) ? productsList : []) {
-            const key = String(p.name || '').toLowerCase();
-            if (key) nameToId.set(key, Number(p.id));
-        }
-
-        const qtyByPid = new Map();
-        const reconciledIds = [];
-
-        for (const o of Array.isArray(orders) ? orders : []) {
-            let items = [];
-            try {
-                items = typeof o.products === 'string' ? JSON.parse(o.products || '[]') : (o.products || []);
-            } catch {}
-            if (!Array.isArray(items) || items.length === 0) continue;
-
-            for (const it of items) {
-                const rawPid = it.product_id != null ? Number(it.product_id) : NaN;
-                const nameKey = String(it.name || it.external_name || '').toLowerCase();
-                const pid = Number.isFinite(rawPid) && rawPid > 0 ? rawPid : (nameToId.get(nameKey) || null);
-                const qty = Number(it.quantity || 0);
-                if (!pid || Number.isNaN(qty) || qty <= 0) continue;
-                qtyByPid.set(pid, (qtyByPid.get(pid) || 0) + qty);
-            }
-
-            reconciledIds.push(o.id);
-        }
-
-        for (const [pid, qty] of qtyByPid.entries()) {
-            await Product.adjustStock(pid, -qty, accountId);
-        }
-
-        if (reconciledIds.length > 0) {
-            await Order.markStockReconciled(reconciledIds, accountId);
-        }
-
-        broadcast('products.changed', {});
-        res.json({ success: true, message: 'Stock reconciled from delivered+paid orders', updated_products: qtyByPid.size, updated_orders: reconciledIds.length });
-    } catch (error) {
-        console.error('Error in reconcileStockFromOrders:', error);
-        res.status(500).json({ success: false, message: 'Failed to reconcile stock', error: error?.message || 'Unknown error' });
-    }
-};
-
 module.exports = {
     getAllOrders,
     getOrderById,
     createOrder,
     updateOrder,
     deleteOrder,
-    startEditOrder,
-    reconcileStockFromOrders
+    startEditOrder
 };

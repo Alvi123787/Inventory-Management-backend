@@ -125,13 +125,6 @@ class Order {
         await promisePool.execute("ALTER TABLE orders ADD COLUMN account_id VARCHAR(36) NULL AFTER user_id");
       }
 
-      const [reconciledCol] = await promisePool.execute(
-        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'stock_reconciled'`
-      );
-      if ((reconciledCol[0]?.cnt || 0) === 0) {
-        await promisePool.execute("ALTER TABLE orders ADD COLUMN stock_reconciled TINYINT(1) DEFAULT 0 AFTER partial_paid_amount");
-      }
-
       console.log('Orders table ready');
     } catch (error) {
       console.error('Error creating orders table:', error.message);
@@ -228,26 +221,6 @@ class Order {
     const [result] = await promisePool.execute('DELETE FROM orders WHERE id=? AND account_id=?', [id, accountId]);
     return result.affectedRows > 0;
   }
-
-  static async getDeliveredPaidUnreconciled(accountId) {
-    const whereBase = "LOWER(status) = 'delivered' AND LOWER(payment_status) = 'paid' AND stock_reconciled = 0";
-    if (accountId == null) {
-      const [rows] = await promisePool.execute(`SELECT id, products FROM orders WHERE ${whereBase}`);
-      return rows;
-    }
-    const [rows] = await promisePool.execute(`SELECT id, products FROM orders WHERE ${whereBase} AND account_id = ?`, [accountId]);
-    return rows;
-  }
-
-  static async markStockReconciled(ids, accountId) {
-    if (!Array.isArray(ids) || ids.length === 0) return 0;
-    const placeholders = ids.map(() => '?').join(',');
-    if (accountId == null) {
-      const [res] = await promisePool.execute(`UPDATE orders SET stock_reconciled = 1 WHERE id IN (${placeholders})`, ids);
-      return res.affectedRows || 0;
-    }
-    const [res] = await promisePool.execute(`UPDATE orders SET stock_reconciled = 1 WHERE account_id = ? AND id IN (${placeholders})`, [accountId, ...ids]);
-    return res.affectedRows || 0;
-  }
 }
+
 module.exports = Order;
