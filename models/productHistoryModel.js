@@ -134,6 +134,29 @@ const ProductHistory = {
     }
     return lines.join('\n');
   }
+  ,
+  deleteById: async (historyId, accountId) => {
+    if (accountId == null) {
+      const [res] = await promisePool.execute(
+        'DELETE FROM product_history WHERE history_id = ?',
+        [Number(historyId)]
+      );
+      return res.affectedRows > 0;
+    }
+    const [res] = await promisePool.execute(
+      'DELETE FROM product_history WHERE history_id = ? AND account_id = ?',
+      [Number(historyId), accountId]
+    );
+    return res.affectedRows > 0;
+  },
+  clearAll: async (accountId) => {
+    if (accountId == null) {
+      const [res] = await promisePool.execute('TRUNCATE TABLE product_history');
+      return true;
+    }
+    const [res] = await promisePool.execute('DELETE FROM product_history WHERE account_id = ?', [accountId]);
+    return res.affectedRows >= 0;
+  }
 };
 
 module.exports = ProductHistory;

@@ -28,4 +28,26 @@ const exportHistory = async (req, res) => {
   }
 };
 
-module.exports = { getHistory, exportHistory };
+const deleteHistoryById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const accountId = req.user.role === 'admin' ? null : req.user.account_id;
+    const ok = await ProductHistory.deleteById(id, accountId);
+    if (!ok) return res.status(404).json({ success: false, message: 'History record not found' });
+    res.json({ success: true, message: 'History record deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to delete history record', error: error.message });
+  }
+};
+
+const deleteAllHistory = async (req, res) => {
+  try {
+    const accountId = req.user.role === 'admin' ? null : req.user.account_id;
+    await ProductHistory.clearAll(accountId);
+    res.json({ success: true, message: accountId == null ? 'All history cleared' : 'Account history cleared' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to clear history', error: error.message });
+  }
+};
+
+module.exports = { getHistory, exportHistory, deleteHistoryById, deleteAllHistory };
