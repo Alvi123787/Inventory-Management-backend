@@ -63,17 +63,14 @@ const ProductHistory = {
           ph.timestamp
         FROM product_history ph
         JOIN users u ON ph.user_id = u.id
+        LEFT JOIN products p ON ph.product_id = p.id
         WHERE ph.product_id = ?
       `;
       const params = [productId];
 
       // If not admin, filter by account_id
       if (accountId) {
-        query += `
-          AND ph.product_id IN (
-            SELECT id FROM products WHERE account_id = ?
-          )
-        `;
+        query += ` AND (p.account_id = ? OR p.id IS NULL)`;
         params.push(accountId);
       }
 
@@ -94,9 +91,9 @@ const ProductHistory = {
       let whereConditions = [];
       const params = [];
 
-      // Add account filter if user is not admin
+      // Add account filter if user is not admin (join products to check account)
       if (accountId) {
-        whereConditions.push(`ph.product_id IN (SELECT id FROM products WHERE account_id = ?)`);
+        whereConditions.push(`p.account_id = ?`);
         params.push(accountId);
       }
 
@@ -111,7 +108,7 @@ const ProductHistory = {
       const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
       const countQuery = `
-        SELECT COUNT(*) AS total
+        SELECT COUNT(DISTINCT ph.history_id) AS total
         FROM product_history ph
         JOIN users u ON ph.user_id = u.id
         LEFT JOIN products p ON ph.product_id = p.id
@@ -174,16 +171,13 @@ const ProductHistory = {
           ph.timestamp
         FROM product_history ph
         JOIN users u ON ph.user_id = u.id
+        LEFT JOIN products p ON ph.product_id = p.id
         WHERE ph.product_id = ?
       `;
       const params = [productId];
 
       if (accountId) {
-        query += `
-          AND ph.product_id IN (
-            SELECT id FROM products WHERE account_id = ?
-          )
-        `;
+        query += ` AND (p.account_id = ? OR p.id IS NULL)`;
         params.push(accountId);
       }
 
