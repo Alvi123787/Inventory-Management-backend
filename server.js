@@ -154,24 +154,39 @@ app.get("/", (req, res) => {
   });
 });
 
-// ====== Error Handling ======
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  res.status(500).json({
-    success: false,
-    message: "Internal server error",
-    error:
-      process.env.NODE_ENV === "development"
-        ? err.message
-        : "Something went wrong",
-  });
-});
-
 // ====== 404 Handler ======
 app.use("*", (req, res) => {
-  res.status(404).json({
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+// ====== Error Handling ======
+app.use((err, req, res, next) => {
+  try {
+    console.error("--- Unhandled Server Error Start ---");
+    console.error(`Path: ${req.path}`);
+    console.error(`Method: ${req.method}`);
+    console.error("Error Name:", err?.name);
+    console.error("Error Code:", err?.code);
+    console.error("Error Message:", err?.message);
+    console.error("Error Stack:", err?.stack);
+    console.error("--- Unhandled Server Error End ---");
+  } catch (_) {}
+
+  let statusCode = 500;
+  let message = "Internal server error";
+
+  if (err?.name === "ValidationError") {
+    statusCode = 400;
+    message = `Validation Failed: ${err.message}`;
+  } else if (err?.isOperational) {
+    statusCode = err.statusCode || 500;
+    message = err.message || message;
+  }
+
+  res.status(statusCode).json({
     success: false,
-    message: "Route not found",
+    message: process.env.NODE_ENV === "development" ? err?.message || message : message,
+    ...(process.env.NODE_ENV === "development" && err?.stack ? { stack: err.stack } : {}),
   });
 });
 
