@@ -120,8 +120,16 @@ const refreshItemPrices = async (items, accountId) => {
         if (!Number.isNaN(pid) && pid > 0) {
             try {
                 const prod = await Product.getById(pid, accountId);
-                if (prod) it.price = Number(prod.price || it.price || 0);
-            } catch {}
+                const incoming = it.price;
+                const hasCustom = incoming != null && !Number.isNaN(Number(incoming));
+                it.price = hasCustom ? Number(incoming) : Number(prod?.price ?? 0);
+            } catch {
+                const incoming = it.price;
+                it.price = incoming != null && !Number.isNaN(Number(incoming)) ? Number(incoming) : 0;
+            }
+        } else {
+            const incoming = it.price;
+            it.price = incoming != null && !Number.isNaN(Number(incoming)) ? Number(incoming) : 0;
         }
     }
     return arr;
