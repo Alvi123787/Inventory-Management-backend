@@ -6,7 +6,6 @@ const bcrypt = require("bcryptjs");
 // ====== Database ======
 const { testConnection } = require("./config/db");
 const Product = require("./models/productModel");
-const ProductHistory = require("./models/productHistoryModel");
 const User = require("./models/User");
 const Order = require("./models/orderModel");
 const Settings = require("./models/settingsModel");
@@ -23,7 +22,6 @@ const Channels = require("./models/channelModel");
 const authRoutes = require("./routes/authRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const productRoutes = require("./routes/productRoutes");
-const productHistoryRoutes = require("./routes/productHistoryRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const { initSSE } = require("./utils/sse"); // ADD
 const expenseRoutes = require("./routes/expenseRoutes")
@@ -120,7 +118,6 @@ app.use("/api/orders", orderRoutes);
 // Alias for clients using singular path
 app.use("/api/order", orderRoutes);
 app.use("/api/products", productRoutes);
-app.use("/api/product-history", productHistoryRoutes);
 app.use("/api/auth", authRoutes);
 // Removed integrations and webhooks routes
 app.use("/api/settings", settingsRoutes);
@@ -213,7 +210,6 @@ const initializeApp = async () => {
     await User.createTable();
     await User.createResetColumns();
     await Product.createTable();
-    await ProductHistory.createTable();
     await Order.createTable();
     await Settings.createTable();
     await Expense.createTable();

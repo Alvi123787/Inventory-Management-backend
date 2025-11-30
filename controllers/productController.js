@@ -1,5 +1,4 @@
 const Product = require('../models/productModel');
-const ProductHistory = require('../models/productHistoryModel');
 const { broadcast } = require('../utils/sse'); // ADD
 
 const productController = {
@@ -105,32 +104,6 @@ const productController = {
 
       const createdProduct = await Product.create({ name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, req.user.id, req.user.account_id || null);
       
-      // Log CREATE action for each field (non-blocking - don't fail product creation if history logging fails)
-      try {
-        const fieldsToLog = ['name', 'price', 'discount_rate', 'cost', 'stock', 'product_date'];
-        const fieldValues = {
-          name: trimmedName,
-          price: parsedPrice,
-          discount_rate: parsedDiscount,
-          cost: parsedCost,
-          stock: parsedStock,
-          product_date: product_date || null
-        };
-        
-        for (const field of fieldsToLog) {
-          await ProductHistory.log(
-            createdProduct.id,
-            'CREATE',
-            field,
-            null,
-            String(fieldValues[field]),
-            req.user.id
-          );
-        }
-      } catch (historyError) {
-        console.error('Warning: Failed to log product creation history:', historyError.message);
-        // Don't fail the product creation if history logging fails
-      }
       
       res.status(201).json({
         success: true,
@@ -215,37 +188,6 @@ const productController = {
       
       const updatedProduct = await Product.update(id, { name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, accountId);
       
-      // Log UPDATE action for changed fields (non-blocking)
-      try {
-        const fieldsToCheck = [
-          { key: 'name', newValue: trimmedName },
-          { key: 'price', newValue: parsedPrice },
-          { key: 'discount_rate', newValue: parsedDiscount },
-          { key: 'cost', newValue: parsedCost },
-          { key: 'stock', newValue: parsedStock },
-          { key: 'product_date', newValue: product_date || null }
-        ];
-        
-        for (const field of fieldsToCheck) {
-          const oldValue = existingProduct[field.key];
-          const newValue = field.newValue;
-          
-          // Only log if the value actually changed
-          if (String(oldValue) !== String(newValue)) {
-            await ProductHistory.log(
-              id,
-              'UPDATE',
-              field.key,
-              String(oldValue),
-              String(newValue),
-              req.user.id
-            );
-          }
-        }
-      } catch (historyError) {
-        console.error('Warning: Failed to log product update history:', historyError.message);
-        // Don't fail the product update if history logging fails
-      }
       
       if (!updatedProduct) {
         return res.status(404).json({
@@ -288,20 +230,6 @@ const productController = {
       const deleted = await Product.delete(id, accountId);
       
       if (deleted) {
-        // Log DELETE action (non-blocking)
-        try {
-          await ProductHistory.log(
-            id,
-            'DELETE',
-            'product',
-            JSON.stringify(product),
-            null,
-            req.user.id
-          );
-        } catch (historyError) {
-          console.error('Warning: Failed to log product deletion history:', historyError.message);
-          // Don't fail the product deletion if history logging fails
-        }
         
         res.json({
           success: true,
