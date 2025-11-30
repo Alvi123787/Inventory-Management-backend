@@ -102,6 +102,8 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 // ====== API Routes ======
 app.use("/api/orders", orderRoutes);
+// Alias for clients using singular path
+app.use("/api/order", orderRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/auth", authRoutes);
 // Removed integrations and webhooks routes

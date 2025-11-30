@@ -5,7 +5,9 @@ const { broadcast } = require('../utils/sse');
 
 // Generate order ID
 const generateOrderId = () => {
-    return 'ORD-' + Math.floor(Math.random() * 10000);
+    const ts = Date.now();
+    const rand = Math.floor(Math.random() * 1000000);
+    return `ORD-${ts}-${rand}`;
 };
 
 // Determine if a status should allocate stock ("confirmed-like")
