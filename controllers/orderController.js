@@ -332,11 +332,7 @@ const updateOrder = async (req, res) => {
             discount_amount: discountAmount != null ? Number(discountAmount) : pricing.discount_amount,
             tax_amount: taxAmount != null ? Number(taxAmount) : pricing.tax_amount,
             tax_included: taxIncluded != null ? (taxIncluded ? 1 : 0) : pricing.tax_included,
-            total_price: (() => {
-              const providedTotal = req.body.total_price ?? req.body.price;
-              if (providedTotal != null && providedTotal !== '') return Number(providedTotal);
-              return pricing.total_price;
-            })(),
+            total_price: pricing.total_price,
             status: req.body.status || existingOrder.status || 'Pending',
             payment_status: req.body.paymentStatus || req.body.payment_status || existingOrder.payment_status || 'Unpaid',
             payment_method: req.body.paymentMethod || req.body.payment_method || existingOrder.payment_method || 'Cash',
