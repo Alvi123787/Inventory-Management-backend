@@ -85,7 +85,16 @@ const ProductHistory = {
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [rows] = await promisePool.execute(
-      `SELECT ph.*, p.name AS product_name, u.name AS user_name, u.email AS user_email
+      `SELECT ph.*, 
+              p.name AS product_name,
+              p.image_url AS image_url,
+              p.price AS price,
+              p.discount_rate AS discount_rate,
+              p.cost AS cost,
+              p.stock AS stock,
+              p.product_date AS product_date,
+              u.name AS user_name,
+              u.email AS user_email
        FROM product_history ph
        LEFT JOIN products p ON p.id = ph.product_id
        LEFT JOIN users u ON u.id = ph.user_id
