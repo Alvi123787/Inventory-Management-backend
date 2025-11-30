@@ -62,7 +62,7 @@ const ProductHistory = {
           u.email AS user_email,
           ph.timestamp
         FROM product_history ph
-        JOIN users u ON ph.user_id = u.id
+        LEFT JOIN users u ON ph.user_id = u.id
         LEFT JOIN products p ON ph.product_id = p.id
         WHERE ph.product_id = ?
       `;
@@ -87,7 +87,9 @@ const ProductHistory = {
   // Get all history (paginated and searchable)
   getAll: async (accountId, page = 1, limit = 50, searchQuery = '') => {
     try {
-      const offset = (page - 1) * limit;
+      const safePage = Math.max(1, parseInt(page, 10) || 1);
+      const safeLimit = Math.min(200, Math.max(10, parseInt(limit, 10) || 50));
+      const offset = (safePage - 1) * safeLimit;
       let whereConditions = [];
       const params = [];
 
@@ -99,9 +101,9 @@ const ProductHistory = {
 
       // Add search filter if provided
       if (searchQuery) {
-        const searchTerm = `%${searchQuery}%`;
-        whereConditions.push(`(p.name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`);
-        params.push(searchTerm, searchTerm, searchTerm);
+        const term = `%${String(searchQuery).trim()}%`;
+        whereConditions.push(`(COALESCE(p.name,'') LIKE ? OR COALESCE(u.name,'') LIKE ? OR COALESCE(u.email,'') LIKE ? OR COALESCE(ph.action_type,'') LIKE ? OR COALESCE(ph.field_changed,'') LIKE ?)`);
+        params.push(term, term, term, term, term);
       }
 
       // Build WHERE clause
@@ -110,7 +112,7 @@ const ProductHistory = {
       const countQuery = `
         SELECT COUNT(DISTINCT ph.history_id) AS total
         FROM product_history ph
-        JOIN users u ON ph.user_id = u.id
+        LEFT JOIN users u ON ph.user_id = u.id
         LEFT JOIN products p ON ph.product_id = p.id
         ${whereClause}
       `;
@@ -129,7 +131,7 @@ const ProductHistory = {
           u.email AS user_email,
           ph.timestamp
         FROM product_history ph
-        JOIN users u ON ph.user_id = u.id
+        LEFT JOIN users u ON ph.user_id = u.id
         LEFT JOIN products p ON ph.product_id = p.id
         ${whereClause}
         ORDER BY ph.timestamp DESC
@@ -137,7 +139,7 @@ const ProductHistory = {
       `;
 
       const countParams = [...params];
-      const dataParams = [...params, limit, offset];
+      const dataParams = [...params, safeLimit, offset];
 
       const [countResult] = await promisePool.execute(countQuery, countParams);
       const [rows] = await promisePool.execute(dataQuery, dataParams);
@@ -145,9 +147,9 @@ const ProductHistory = {
       return {
         data: rows,
         total: countResult[0]?.total || 0,
-        page,
-        limit,
-        totalPages: Math.ceil((countResult[0]?.total || 0) / limit)
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil((countResult[0]?.total || 0) / safeLimit)
       };
     } catch (error) {
       console.error('Error fetching all product history:', error.message);
@@ -170,7 +172,7 @@ const ProductHistory = {
           u.name AS user_name,
           ph.timestamp
         FROM product_history ph
-        JOIN users u ON ph.user_id = u.id
+        LEFT JOIN users u ON ph.user_id = u.id
         LEFT JOIN products p ON ph.product_id = p.id
         WHERE ph.product_id = ?
       `;
