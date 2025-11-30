@@ -335,7 +335,7 @@ const updateOrder = async (req, res) => {
             })(req.body.paymentStatus || req.body.payment_status || existingOrder.payment_status)
         };
 
-        // Inventory adjustments independent of status, with special handling for cancel/return
+        // Inventory adjustments: cancel/return restore; edit-start absolute allocation; otherwise delta
         try {
           const prevItems = Array.isArray(prevItemsRaw) ? prevItemsRaw : [];
           const newItems = Array.isArray(incomingItems) ? incomingItems : prevItems;
@@ -364,7 +364,25 @@ const updateOrder = async (req, res) => {
                 await Product.adjustStock(pid, qty, accountId);
               }
             }
+          } else if (req.body.restoredOnEdit) {
+            // Absolute allocation: edit-start already restored stock; subtract new quantities
+            for (const [pid, newQty] of newMap.entries()) {
+              if (newQty > 0) {
+                const prod = await Product.getById(pid, accountId);
+                const available = Number(prod?.stock || 0);
+                if (!prod || available < newQty) {
+                  const name = prod?.name || `ID ${pid}`;
+                  return res.status(400).json({ success: false, message: `Insufficient stock for product ${name}` });
+                }
+              }
+            }
+            for (const [pid, newQty] of newMap.entries()) {
+              if (newQty > 0) {
+                await Product.adjustStock(pid, -newQty, accountId);
+              }
+            }
           } else {
+            // Delta path: subtract only the difference between new and previous quantities
             const allPids = new Set([...prevMap.keys(), ...newMap.keys()]);
             for (const pid of allPids) {
               const oldQty = prevMap.get(pid) || 0;
