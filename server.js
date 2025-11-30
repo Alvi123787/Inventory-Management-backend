@@ -37,11 +37,16 @@ const channelRoutes = require("./routes/channelRoutes");
 const app = express();
 
 // ====== CORS (robust, flexible origins + preflight handling) ======
-// Allowed origins are taken from `ALLOWED_ORIGINS` env (comma-separated)
-// We also include `FRONTEND_URL`/`CLIENT_URL` and default to localhost for dev.
+// Build allowed origins from env and sane defaults
+const envOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const defaultFrontend = process.env.FRONTEND_URL || process.env.CLIENT_URL || '';
 const allowedOrigins = [
-  'https://inventorymanagement07.netlify.app'
-];
+  'https://inventorymanagement07.netlify.app',
+  defaultFrontend
+].filter(Boolean).concat(envOrigins);
 
 const corsOptions = {
   origin: function(origin, callback) {
@@ -50,6 +55,14 @@ const corsOptions = {
 
     // Exact allowlist match
     if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Allow Netlify subdomains if needed
+    try {
+      const parsed = new URL(origin);
+      if (parsed.hostname.endsWith('netlify.app')) {
+        return callback(null, true);
+      }
+    } catch (e) {}
 
     // Allow localhost variants on any port during development
     try {
