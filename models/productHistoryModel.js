@@ -10,7 +10,7 @@ const ProductHistory = {
         field_changed VARCHAR(100) NULL,
         old_value TEXT NULL,
         new_value TEXT NULL,
-        user_id INT NOT NULL,
+        user_id INT NULL,
         account_id VARCHAR(36) NULL,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product (product_id),
@@ -71,7 +71,7 @@ const ProductHistory = {
     const [countRows] = await promisePool.execute(
       `SELECT COUNT(*) AS cnt
        FROM product_history ph
-       ${whereSql.replace('ph.', '') ? whereSql : ''}`,
+       ${whereSql}`,
       params
     );
     return { rows, total: Number(countRows[0]?.cnt || 0), page: Number(page), limit: Number(limit) };
@@ -102,4 +102,3 @@ const ProductHistory = {
 };
 
 module.exports = ProductHistory;
-
