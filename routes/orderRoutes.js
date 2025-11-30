@@ -6,9 +6,11 @@ const {
   createOrder,
   updateOrder,
   deleteOrder,
-  startEditOrder
+  startEditOrder,
+  reconcileStockFromOrders
 } = require('../controllers/orderController');
 const { protect } = require('../middleware/authMiddleware');
+const { adminOnly } = require('../middleware/roleMiddleware');
 const { body, validationResult } = require('express-validator');
 
 const validateOrder = [
@@ -50,5 +52,8 @@ router.put('/:id', validateOrder, updateOrder);
 
 // DELETE /api/orders/:id - Delete order for authenticated user
 router.delete('/:id', deleteOrder);
+
+// POST /api/orders/reconcile-stock - Admin-only reconcile product stock from delivered+paid orders
+router.post('/reconcile-stock', adminOnly, reconcileStockFromOrders);
 
 module.exports = router;
