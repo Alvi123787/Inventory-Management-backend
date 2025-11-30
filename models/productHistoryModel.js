@@ -91,9 +91,9 @@ const ProductHistory = {
       let whereConditions = [];
       const params = [];
 
-      // Add account filter if user is not admin (join products to check account)
+      // Add account filter if user is not admin (include deleted products rows)
       if (accountId) {
-        whereConditions.push(`p.account_id = ?`);
+        whereConditions.push(`(p.account_id = ? OR p.id IS NULL)`);
         params.push(accountId);
       }
 
