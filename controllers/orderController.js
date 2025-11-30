@@ -53,7 +53,7 @@ const formatOrderForFrontend = (order) => {
         ...order,
         product_title,
         price,
-        date: order.created_at
+        date: order.order_date || order.created_at || null
     };
 };
 
@@ -204,6 +204,10 @@ const createOrder = async (req, res) => {
             phone: req.body.phone || '',
             address: req.body.address || '',
             products: refreshed || [{ name: req.body.productTitle || 'Custom Order', quantity: 1, price: Number(req.body.price || 0) }],
+            order_date: (() => {
+              const d = req.body.date || req.body.order_date || null;
+              return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+            })(),
             subtotal: pricing.subtotal,
             discount_amount: pricing.discount_amount,
             tax_amount: pricing.tax_amount,
@@ -318,6 +322,11 @@ const updateOrder = async (req, res) => {
             phone: req.body.phone || existingOrder.phone || '',
             address: req.body.address || existingOrder.address || '',
             products: itemsForPricing,
+            order_date: (() => {
+              const incoming = req.body.date || req.body.order_date;
+              if (incoming && /^\d{4}-\d{2}-\d{2}$/.test(incoming)) return incoming;
+              return existingOrder.order_date ?? null;
+            })(),
             subtotal: subtotal != null ? Number(subtotal) : pricing.subtotal,
             discount_amount: discountAmount != null ? Number(discountAmount) : pricing.discount_amount,
             tax_amount: taxAmount != null ? Number(taxAmount) : pricing.tax_amount,

@@ -11,6 +11,7 @@ class Order {
         phone VARCHAR(20),
         address TEXT,
         products TEXT,
+        order_date DATE DEFAULT NULL,
         subtotal DECIMAL(10,2) NULL,
         discount_amount DECIMAL(10,2) DEFAULT 0,
         tax_amount DECIMAL(10,2) DEFAULT 0,
@@ -39,6 +40,13 @@ class Order {
       );
       if ((productsCol[0]?.cnt || 0) === 0) {
         await promisePool.execute("ALTER TABLE orders ADD COLUMN products JSON AFTER address");
+      }
+
+      const [orderDateCol] = await promisePool.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'order_date'`
+      );
+      if ((orderDateCol[0]?.cnt || 0) === 0) {
+        await promisePool.execute("ALTER TABLE orders ADD COLUMN order_date DATE DEFAULT NULL AFTER products");
       }
 
       const [subtotalCol] = await promisePool.execute(
@@ -157,8 +165,8 @@ class Order {
 
   static async create(orderData, userId, accountId) {
     const [result] = await promisePool.execute(
-      `INSERT INTO orders (order_id, user_id, account_id, customer_name, phone, address, products, subtotal, discount_amount, total_price, tax_amount, tax_included, status, payment_status, payment_method, courier, tracking_id, channel, partial_paid_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO orders (order_id, user_id, account_id, customer_name, phone, address, products, order_date, subtotal, discount_amount, total_price, tax_amount, tax_included, status, payment_status, payment_method, courier, tracking_id, channel, partial_paid_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderData.order_id,
         userId,
@@ -167,6 +175,7 @@ class Order {
         orderData.phone,
         orderData.address,
         JSON.stringify(orderData.products || []),
+        orderData.order_date ?? null,
         orderData.subtotal ?? null,
         orderData.discount_amount ?? 0,
         orderData.total_price,
@@ -186,7 +195,7 @@ class Order {
 
   static async update(id, orderData, accountId) {
     const [result] = await promisePool.execute(
-      `UPDATE orders SET order_id=?, customer_name=?, phone=?, address=?, products=?, subtotal=?, discount_amount=?, total_price=?, tax_amount=?, tax_included=?, status=?, payment_status=?, payment_method=?, courier=?, tracking_id=?, channel=?, partial_paid_amount=? 
+      `UPDATE orders SET order_id=?, customer_name=?, phone=?, address=?, products=?, order_date=?, subtotal=?, discount_amount=?, total_price=?, tax_amount=?, tax_included=?, status=?, payment_status=?, payment_method=?, courier=?, tracking_id=?, channel=?, partial_paid_amount=? 
        WHERE id=?${accountId == null ? '' : ' AND account_id=?'}`,
       [
         orderData.order_id,
@@ -194,6 +203,7 @@ class Order {
         orderData.phone,
         orderData.address,
         JSON.stringify(orderData.products || []),
+        orderData.order_date ?? null,
         orderData.subtotal ?? null,
         orderData.discount_amount ?? 0,
         orderData.total_price,
