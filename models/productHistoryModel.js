@@ -1,4 +1,14 @@
 const { promisePool } = require('../config/db');
+let initialized = false;
+
+async function ensureReady() {
+  if (!initialized) {
+    try {
+      await ProductHistory.createTable();
+    } catch (_) {}
+    initialized = true;
+  }
+}
 
 const ProductHistory = {
   createTable: async () => {
@@ -12,7 +22,7 @@ const ProductHistory = {
         new_value TEXT NULL,
         user_id INT NULL,
         account_id VARCHAR(36) NULL,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_product (product_id),
         INDEX idx_account (account_id),
         INDEX idx_action (action_type),
@@ -31,11 +41,27 @@ const ProductHistory = {
   },
 
   logChange: async ({ product_id, action_type, field_changed, old_value, new_value, user_id, account_id }) => {
-    const [res] = await promisePool.execute(
-      `INSERT INTO product_history (product_id, action_type, field_changed, old_value, new_value, user_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [product_id, action_type, field_changed || null, old_value != null ? String(old_value) : null, new_value != null ? String(new_value) : null, user_id, account_id || null]
-    );
-    return res.insertId;
+    await ensureReady();
+    try {
+      const [res] = await promisePool.execute(
+        `INSERT INTO product_history (product_id, action_type, field_changed, old_value, new_value, user_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [product_id, action_type, field_changed || null, old_value != null ? String(old_value) : null, new_value != null ? String(new_value) : null, user_id, account_id || null]
+      );
+      return res.insertId;
+    } catch (e) {
+      const msg = String(e?.message || '').toLowerCase();
+      if (msg.includes("doesn't exist") || msg.includes('no such table') || e?.code === 'ER_NO_SUCH_TABLE') {
+        try {
+          await ProductHistory.createTable();
+          const [res] = await promisePool.execute(
+            `INSERT INTO product_history (product_id, action_type, field_changed, old_value, new_value, user_id, account_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [product_id, action_type, field_changed || null, old_value != null ? String(old_value) : null, new_value != null ? String(new_value) : null, user_id, account_id || null]
+          );
+          return res.insertId;
+        } catch (_) {}
+      }
+      throw e;
+    }
   },
 
   getAll: async ({ accountId, q, sortBy = 'timestamp', sortOrder = 'DESC', page = 1, limit = 50, productId } = {}) => {
