@@ -91,33 +91,30 @@ const ProductHistory = {
   getAll: async (accountId, page = 1, limit = 50, searchQuery = '') => {
     try {
       const offset = (page - 1) * limit;
-      let whereClause = '';
+      let whereConditions = [];
       const params = [];
 
+      // Add account filter if user is not admin
       if (accountId) {
-        whereClause += `
-          WHERE ph.product_id IN (
-            SELECT id FROM products WHERE account_id = ?
-          )
-        `;
+        whereConditions.push(`ph.product_id IN (SELECT id FROM products WHERE account_id = ?)`);
         params.push(accountId);
       }
 
+      // Add search filter if provided
       if (searchQuery) {
         const searchTerm = `%${searchQuery}%`;
-        if (whereClause) {
-          whereClause += ` AND (p.name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
-        } else {
-          whereClause = ` WHERE (p.name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`;
-        }
+        whereConditions.push(`(p.name LIKE ? OR u.name LIKE ? OR u.email LIKE ?)`);
         params.push(searchTerm, searchTerm, searchTerm);
       }
+
+      // Build WHERE clause
+      const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
       const countQuery = `
         SELECT COUNT(*) AS total
         FROM product_history ph
         JOIN users u ON ph.user_id = u.id
-        JOIN products p ON ph.product_id = p.id
+        LEFT JOIN products p ON ph.product_id = p.id
         ${whereClause}
       `;
 
@@ -125,7 +122,7 @@ const ProductHistory = {
         SELECT 
           ph.history_id,
           ph.product_id,
-          p.name AS product_name,
+          COALESCE(p.name, 'Deleted Product') AS product_name,
           ph.action_type,
           ph.field_changed,
           ph.old_value,
@@ -136,7 +133,7 @@ const ProductHistory = {
           ph.timestamp
         FROM product_history ph
         JOIN users u ON ph.user_id = u.id
-        JOIN products p ON ph.product_id = p.id
+        LEFT JOIN products p ON ph.product_id = p.id
         ${whereClause}
         ORDER BY ph.timestamp DESC
         LIMIT ? OFFSET ?
