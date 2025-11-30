@@ -1,4 +1,5 @@
 const Product = require('../models/productModel');
+const ProductHistory = require('../models/productHistoryModel');
 const { broadcast } = require('../utils/sse'); // ADD
 
 const productController = {
@@ -104,6 +105,28 @@ const productController = {
 
       const createdProduct = await Product.create({ name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, req.user.id, req.user.account_id || null);
       
+      // Log CREATE action for each field
+      const fieldsToLog = ['name', 'price', 'discount_rate', 'cost', 'stock', 'product_date'];
+      const fieldValues = {
+        name: trimmedName,
+        price: parsedPrice,
+        discount_rate: parsedDiscount,
+        cost: parsedCost,
+        stock: parsedStock,
+        product_date: product_date || null
+      };
+      
+      for (const field of fieldsToLog) {
+        await ProductHistory.log(
+          createdProduct.id,
+          'CREATE',
+          field,
+          null,
+          String(fieldValues[field]),
+          req.user.id
+        );
+      }
+      
       res.status(201).json({
         success: true,
         message: 'Product created successfully',
@@ -175,7 +198,44 @@ const productController = {
       }
 
       const accountId = req.user.role === 'admin' ? null : req.user.account_id;
+      
+      // Get the existing product before update to log changes
+      const existingProduct = await Product.getById(id, accountId);
+      if (!existingProduct) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found or access denied'
+        });
+      }
+      
       const updatedProduct = await Product.update(id, { name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, accountId);
+      
+      // Log UPDATE action for changed fields
+      const fieldsToCheck = [
+        { key: 'name', newValue: trimmedName },
+        { key: 'price', newValue: parsedPrice },
+        { key: 'discount_rate', newValue: parsedDiscount },
+        { key: 'cost', newValue: parsedCost },
+        { key: 'stock', newValue: parsedStock },
+        { key: 'product_date', newValue: product_date || null }
+      ];
+      
+      for (const field of fieldsToCheck) {
+        const oldValue = existingProduct[field.key];
+        const newValue = field.newValue;
+        
+        // Only log if the value actually changed
+        if (String(oldValue) !== String(newValue)) {
+          await ProductHistory.log(
+            id,
+            'UPDATE',
+            field.key,
+            String(oldValue),
+            String(newValue),
+            req.user.id
+          );
+        }
+      }
       
       if (!updatedProduct) {
         return res.status(404).json({
@@ -205,20 +265,40 @@ const productController = {
       const { id } = req.params;
 
       const accountId = req.user.role === 'admin' ? null : req.user.account_id;
-      const deleted = await Product.delete(req.params.id, accountId);
+      
+      // Get the product before deletion to log it
+      const product = await Product.getById(id, accountId);
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found or access denied'
+        });
+      }
+      
+      const deleted = await Product.delete(id, accountId);
       
       if (deleted) {
+        // Log DELETE action
+        await ProductHistory.log(
+          id,
+          'DELETE',
+          'product',
+          JSON.stringify(product),
+          null,
+          req.user.id
+        );
+        
         res.json({
           success: true,
           message: 'Product deleted successfully'
         });
+        broadcast('products.changed', { id: Number(id) }); // ADD
       } else {
         res.status(404).json({
           success: false,
           message: 'Product not found or access denied'
         });
       }
-      if (deleted) broadcast('products.changed', { id: Number(req.params.id) }); // ADD
     } catch (error) {
       res.status(500).json({
         success: false,
