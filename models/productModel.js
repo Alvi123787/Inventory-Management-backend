@@ -1,4 +1,5 @@
 const { promisePool } = require('../config/db');
+const ProductHistory = require('./productHistoryModel');
 
 const Product = {
   // Create table with external_id & platform
@@ -130,13 +131,32 @@ const Product = {
   },
 
   // Adjust stock by a delta (can be negative). Ensures stock does not go below 0.
-  adjustStock: async (id, delta, accountId) => {
+  adjustStock: async (id, delta, accountId, userId) => {
     const parsedDelta = parseInt(delta, 10) || 0;
+    const [rows] = await promisePool.execute(
+      accountId == null ? 'SELECT stock, account_id FROM products WHERE id=?' : 'SELECT stock, account_id FROM products WHERE id=? AND account_id=?',
+      accountId == null ? [id] : [id, accountId]
+    );
+    const current = rows[0];
+    if (!current) return true;
+    const oldStock = Number(current.stock || 0);
+    const after = Math.max(oldStock + parsedDelta, 0);
     if (accountId == null) {
-      await promisePool.execute('UPDATE products SET stock = GREATEST(stock + ?, 0) WHERE id=?', [parsedDelta, id]);
-      return true;
+      await promisePool.execute('UPDATE products SET stock = ? WHERE id=?', [after, id]);
+    } else {
+      await promisePool.execute('UPDATE products SET stock = ? WHERE id=? AND account_id=?', [after, id, accountId]);
     }
-    await promisePool.execute('UPDATE products SET stock = GREATEST(stock + ?, 0) WHERE id=? AND account_id=?', [parsedDelta, id, accountId]);
+    try {
+      await ProductHistory.logChange({
+        product_id: Number(id),
+        action_type: 'STOCK_ADJUSTMENT',
+        field_changed: 'stock',
+        old_value: String(oldStock),
+        new_value: String(after),
+        user_id: Number(userId || 0),
+        account_id: accountId || current.account_id || null
+      });
+    } catch (_) {}
     return true;
   }
 };

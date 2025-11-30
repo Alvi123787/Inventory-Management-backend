@@ -103,8 +103,28 @@ const productController = {
       }
 
       const createdProduct = await Product.create({ name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, req.user.id, req.user.account_id || null);
-      
-      
+      try {
+        const accountId = req.user.account_id || null;
+        const fields = [
+          ['name', trimmedName],
+          ['price', parsedPrice],
+          ['discount_rate', parsedDiscount],
+          ['cost', parsedCost],
+          ['stock', parsedStock],
+          ['product_date', product_date || null]
+        ];
+        for (const [field, value] of fields) {
+          await require('../models/productHistoryModel').logChange({
+            product_id: createdProduct.id,
+            action_type: 'CREATE',
+            field_changed: field,
+            old_value: null,
+            new_value: value != null ? String(value) : null,
+            user_id: req.user.id,
+            account_id: accountId
+          });
+        }
+      } catch (_) {}
       res.status(201).json({
         success: true,
         message: 'Product created successfully',
@@ -187,8 +207,35 @@ const productController = {
       }
       
       const updatedProduct = await Product.update(id, { name: trimmedName, price: parsedPrice, discount_rate: parsedDiscount, cost: parsedCost, stock: parsedStock, image_url: safeImageUrl, product_date: product_date || null }, accountId);
-      
-      
+      try {
+        const toPairs = (p) => ({
+          name: p.name,
+          price: Number(p.price),
+          discount_rate: Number(p.discount_rate || 0),
+          cost: Number(p.cost),
+          stock: Number(p.stock),
+          image_url: p.image_url || null,
+          product_date: p.product_date || null
+        });
+        const before = toPairs(existingProduct);
+        const after = toPairs({ ...existingProduct, ...updatedProduct });
+        for (const key of Object.keys(before)) {
+          const oldVal = before[key];
+          const newVal = after[key];
+          const changed = String(oldVal ?? '') !== String(newVal ?? '');
+          if (changed) {
+            await require('../models/productHistoryModel').logChange({
+              product_id: Number(id),
+              action_type: 'UPDATE',
+              field_changed: key,
+              old_value: oldVal != null ? String(oldVal) : null,
+              new_value: newVal != null ? String(newVal) : null,
+              user_id: req.user.id,
+              account_id: accountId
+            });
+          }
+        }
+      } catch (_) {}
       if (!updatedProduct) {
         return res.status(404).json({
           success: false,
@@ -230,7 +277,17 @@ const productController = {
       const deleted = await Product.delete(id, accountId);
       
       if (deleted) {
-        
+        try {
+          await require('../models/productHistoryModel').logChange({
+            product_id: Number(id),
+            action_type: 'DELETE',
+            field_changed: 'product',
+            old_value: JSON.stringify(product),
+            new_value: null,
+            user_id: req.user.id,
+            account_id: accountId
+          });
+        } catch (_) {}
         res.json({
           success: true,
           message: 'Product deleted successfully'

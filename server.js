@@ -15,6 +15,7 @@ const Statuses = require("./models/statusModel");
 const PaymentStatuses = require("./models/paymentStatusModel");
 const Couriers = require("./models/courierModel");
 const Channels = require("./models/channelModel");
+const ProductHistory = require("./models/productHistoryModel");
 
 
 
@@ -30,6 +31,7 @@ const statusRoutes = require("./routes/statusRoutes");
 const paymentStatusRoutes = require("./routes/paymentStatusRoutes");
 const courierRoutes = require("./routes/courierRoutes");
 const channelRoutes = require("./routes/channelRoutes");
+const productHistoryRoutes = require("./routes/productHistoryRoutes");
 
 // ====== Express App Setup ======
 const app = express();
@@ -118,6 +120,7 @@ app.use("/api/orders", orderRoutes);
 // Alias for clients using singular path
 app.use("/api/order", orderRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/product-history", productHistoryRoutes);
 app.use("/api/auth", authRoutes);
 // Removed integrations and webhooks routes
 app.use("/api/settings", settingsRoutes);
@@ -218,6 +221,7 @@ const initializeApp = async () => {
     await PaymentStatuses.createTable();
     await Couriers.createTable();
     await Channels.createTable();
+    await ProductHistory.createTable();
 
     try {
       const existingAdmin = await User.findByEmail("rebalalvi123@gmail.com");

@@ -265,7 +265,7 @@ const createOrder = async (req, res) => {
             const pid = Number(it.product_id);
             const qty = Number(it.quantity || 1);
             if (!Number.isNaN(pid) && pid > 0 && !Number.isNaN(qty) && qty > 0) {
-              await Product.adjustStock(pid, -qty, accountId);
+              await Product.adjustStock(pid, -qty, accountId, req.user.id);
             }
           }
         } catch (invErr) {
@@ -378,7 +378,7 @@ const updateOrder = async (req, res) => {
           if (newIsCancelled || newIsReturned) {
             if (!req.body.restoredOnEdit) {
               for (const [pid, qty] of prevMap.entries()) {
-                await Product.adjustStock(pid, qty, accountId);
+                await Product.adjustStock(pid, qty, accountId, req.user.id);
               }
             }
           } else if (req.body.restoredOnEdit) {
@@ -395,7 +395,7 @@ const updateOrder = async (req, res) => {
             }
             for (const [pid, newQty] of newMap.entries()) {
               if (newQty > 0) {
-                await Product.adjustStock(pid, -newQty, accountId);
+                await Product.adjustStock(pid, -newQty, accountId, req.user.id);
               }
             }
           } else {
@@ -419,7 +419,7 @@ const updateOrder = async (req, res) => {
               const newQty = newMap.get(pid) || 0;
               const delta = newQty - oldQty;
               if (delta !== 0) {
-                await Product.adjustStock(pid, -delta, accountId);
+                await Product.adjustStock(pid, -delta, accountId, req.user.id);
               }
             }
           }
@@ -467,7 +467,7 @@ const deleteOrder = async (req, res) => {
               const pid = Number(it.product_id);
               const qty = Number(it.quantity || 0);
               if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
-                await Product.adjustStock(pid, qty, accountId);
+                await Product.adjustStock(pid, qty, accountId, req.user.id);
               }
             }
           }
@@ -513,7 +513,7 @@ const startEditOrder = async (req, res) => {
                 const pid = Number(it.product_id);
                 const qty = Number(it.quantity || 0);
                 if (!Number.isNaN(pid) && pid > 0 && qty > 0) {
-                    await Product.adjustStock(pid, qty, accountId);
+                    await Product.adjustStock(pid, qty, accountId, req.user.id);
                 }
             }
         } catch (invErr) {
